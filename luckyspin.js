@@ -1,36 +1,36 @@
 const translations = {
   en: {
-    title: "🎉 ShweNyarThar Lucky Draw 🎉",
+    title: "🎉 SNT Lucky Draw 🎉",
     usernamePlaceholder: "Enter your username...",
-    spin: "🎯 Spin",
+    spin: "Spin",
     yourResult: "🎯 Your Result:",
     winnerBoard: "🏆 Winner Board",
     alreadySpun: "❗ This user already spun.",
     pleaseEnter: "Please enter your username.",
     alreadySpunAlert: "This user has already spun.",
-    prizes: ["500 MMK", "1,000 MMK", "2,000 MMK", "3,000 MMK", "5,000 MMK", "10,000 MMK", "15,000 MMK", "30,000 MMK", "100,000 MMK"],
+    prizes: [], // Will be loaded from backend
     won: "🎊 {username} won: {prize}",
     congratulations: "🎉 Congratulations! 🎉",
     youWon: "You won"
   },
   mm: {
-    title: "🎉 ရွှေညာသားကံစမ်းမဲ 🎉",
+    title: "🎉 SNT ကံစမ်းမဲ 🎉",
     usernamePlaceholder: "သင့်အမည်ထည့်ပါ...",
-    spin: "🎯 ကံစမ်းမဲ",
+    spin: "လှည့်မယ်",
     yourResult: "🎯 သင့်ရလဒ်:",
     winnerBoard: "🏆 အနိုင်ရသူများ",
     alreadySpun: "❗ ဤအသုံးပြုသူက ကံစမ်းပြီးပါပြီ။",
     pleaseEnter: "ကျေးဇူးပြု၍ သင့်အမည်ထည့်ပါ။",
     alreadySpunAlert: "ဤအသုံးပြုသူက ကံစမ်းပြီးပါပြီ။",
-    prizes: ["၅၀၀ ကျပ်", "၁၀၀၀ ကျပ်", "၂၀၀၀ ကျပ်", "၃၀၀၀ ကျပ်", "၅၀၀၀ ကျပ်", "၁၀၀၀၀ ကျပ်", "၁၅၀၀၀ ကျပ်", "၃၀၀၀၀ ကျပ်", "၁၀၀၀၀၀ ကျပ်"],
+    prizes: [], // Will be loaded from backend
     won: "🎊 {username} က ရရှိသည် - {prize}",
     congratulations: "🎉 ဂုဏ်ယူပါ! 🎉",
     youWon: "သင်ရရှိသည်"
   }
 };
 
-let currentLang = "en";
-const prizeProbabilities = [30, 20, 40, 30, 1, 0.1, 0.01, 0.001, 0.0001]; // 从高到低
+let currentLang = "mm";
+let prizeProbabilities = []; // Will be loaded from backend
 
 // Backend URL Configuration - Updated to your deployed backend:
 const BACKEND_URL = 'https://snt-luckyspin.onrender.com'; // Your deployed backend
@@ -42,10 +42,10 @@ function setLanguage(lang) {
 
   // Update two-line title
   if (lang === 'en') {
-    document.getElementById("titleLine1").innerText = "ShweNyarThar";
+    document.getElementById("titleLine1").innerText = "SNT";
     document.getElementById("titleLine2").innerText = "Lucky Draw";
   } else {
-    document.getElementById("titleLine1").innerText = "ရွှေညာသား";
+    document.getElementById("titleLine1").innerText = "SNT";
     document.getElementById("titleLine2").innerText = "ကံစမ်းမဲ";
   }
 
@@ -64,10 +64,105 @@ function setLanguage(lang) {
   }
 }
 
+// Load and display total spin count
+async function loadTotalSpinCount() {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/total-spins`);
+    const data = await response.json();
+    
+    if (data.success) {
+      // Server now returns the complete total (base counter + database count)
+      const serverCount = data.totalSpins || 1958;
+      const localCount = parseInt(localStorage.getItem('totalSpinCount') || '1958');
+      
+      // Always trust the server value when available, only use local as fallback
+      const finalCount = serverCount;
+      
+      // Store the count locally as backup
+      localStorage.setItem('totalSpinCount', finalCount.toString());
+      
+      document.getElementById('totalSpinNumber').textContent = finalCount.toLocaleString();
+      console.log(`Total spins loaded: Server=${serverCount}, Local=${localCount}, Final=${finalCount}`);
+    }
+  } catch (error) {
+    console.log('Server unavailable, using local count');
+    // Use local storage as fallback
+    const localCount = parseInt(localStorage.getItem('totalSpinCount') || '1958');
+    document.getElementById('totalSpinNumber').textContent = localCount.toLocaleString();
+  }
+}
+
+// Increment total spin counter with animation
+function incrementSpinCounter() {
+  const counterElement = document.getElementById('totalSpinNumber');
+  const currentCount = parseInt(counterElement.textContent.replace(/,/g, '')) || 1958;
+  const newCount = currentCount + 1;
+  
+  // Store the new count locally immediately
+  localStorage.setItem('totalSpinCount', newCount.toString());
+  
+  // Animate the increment
+  counterElement.style.animation = 'counterIncrement 0.6s ease-out';
+  
+  setTimeout(() => {
+    counterElement.textContent = newCount.toLocaleString();
+    counterElement.style.animation = '';
+  }, 300);
+  
+  console.log(`Spin counter incremented: ${currentCount} → ${newCount}`);
+}
+
+// Load configuration from backend
+async function loadConfig() {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/config`);
+    const data = await response.json();
+    
+    if (data.success) {
+      // Update translations with loaded prizes
+      translations.en.prizes = data.config.prizes.en;
+      translations.mm.prizes = data.config.prizes.mm;
+      prizeProbabilities = data.config.probabilities;
+      
+      // Update display
+      updatePrizeDisplay();
+      console.log('✅ Configuration loaded from backend');
+    } else {
+      console.error('Failed to load configuration, using defaults');
+      // Set default values if backend fails
+      translations.en.prizes = ["500 MMK", "1,000 MMK", "2,000 MMK", "3,000 MMK", "5,000 MMK", "10,000 MMK", "15,000 MMK", "30,000 MMK", "100,000 MMK"];
+      translations.mm.prizes = ["၅၀၀ ကျပ်", "၁၀၀၀ ကျပ်", "၂၀၀၀ ကျပ်", "၃၀၀၀ ကျပ်", "၅၀၀၀ ကျပ်", "၁၀၀၀၀ ကျပ်", "၁၅၀၀၀ ကျပ်", "၃၀၀၀၀ ကျပ်", "၁၀၀၀၀၀ ကျပ်"];
+      prizeProbabilities = [30, 20, 40, 30, 1, 0.1, 0.01, 0.001, 0.0001];
+      updatePrizeDisplay();
+    }
+  } catch (error) {
+    console.error('Error loading configuration:', error);
+    // Set default values if backend fails
+    translations.en.prizes = ["500 MMK", "1,000 MMK", "2,000 MMK", "3,000 MMK", "5,000 MMK", "10,000 MMK", "15,000 MMK", "30,000 MMK", "100,000 MMK"];
+    translations.mm.prizes = ["၅၀၀ ကျပ်", "၁၀၀၀ ကျပ်", "၂၀၀၀ ကျပ်", "၃၀၀၀ ကျပ်", "၅၀၀၀ ကျပ်", "၁၀၀၀၀ ကျပ်", "၁၅၀၀၀ ကျပ်", "၃၀၀၀၀ ကျပ်", "၁၀၀၀၀၀ ကျပ်"];
+    prizeProbabilities = [30, 20, 40, 30, 1, 0.1, 0.01, 0.001, 0.0001];
+    updatePrizeDisplay();
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  // Clear cached total spin count to fix counter sync issue
+  // This can be removed after users refresh their browsers
+  localStorage.removeItem('totalSpinCount');
+  
   document.getElementById("lang-en").onclick = () => setLanguage("en");
   document.getElementById("lang-mm").onclick = () => setLanguage("mm");
-  setLanguage("en"); // default
+  
+  // Load configuration and total spin count, then set language
+  loadConfig().then(() => {
+    setLanguage("mm"); // default
+  });
+  loadTotalSpinCount();
+  
+  // Sync with server every 30 seconds (optional)
+  setInterval(() => {
+    loadTotalSpinCount();
+  }, 30000);
 });
 
 // Update updatePrizeDisplay to use translations
@@ -135,8 +230,15 @@ function spin() {
       const cycles = 4;
       const totalSteps = cycles * translations[currentLang].prizes.length + finalIndex;
       let current = 0;
-      rollSound.currentTime = 0;
-      rollSound.play();
+      // Play roll sound with error handling
+      try {
+        rollSound.currentTime = 0;
+        rollSound.play().catch(() => {
+          // Ignore audio errors - audio files might not exist
+        });
+      } catch (e) {
+        // Ignore audio errors
+      }
       function animateSpin() {
         prizeElements.forEach(p => p.classList.remove('highlight'));
         prizeElements[current % translations[currentLang].prizes.length].classList.add('highlight');
@@ -145,8 +247,15 @@ function spin() {
           const delay = easeOutQuad(current, 30, 300, totalSteps);
           setTimeout(animateSpin, delay);
         } else {
-          rollSound.pause();
-          winSound.play();
+          // Stop roll sound and play win sound with error handling
+          try {
+            rollSound.pause();
+            winSound.play().catch(() => {
+              // Ignore audio errors - audio files might not exist
+            });
+          } catch (e) {
+            // Ignore audio errors
+          }
           prizeElements.forEach(p => p.classList.remove('highlight'));
           prizeElements[finalIndex].classList.add('highlight');
           const wonPrize = translations[currentLang].prizes[finalIndex];
@@ -191,6 +300,9 @@ function spin() {
 
           // Show win popup notification
           showWinPopup(username, wonPrize);
+
+          // Increment the total spin counter
+          incrementSpinCounter();
 
           // --- Save to backend, then update localStorage ---
           fetch(`${BACKEND_URL}/api/spin`, {
@@ -326,9 +438,47 @@ function getDailyWinners(count = 10) {
   }));
 }
 
-function renderWinnerBoard() {
+async function renderWinnerBoard() {
   const tbody = document.getElementById("winnerBoardBody");
   if (!tbody) return;
+  
+  try {
+    // Try to load from backend first
+    const response = await fetch(`${BACKEND_URL}/api/winner-board`);
+    const data = await response.json();
+    
+    if (data.success) {
+      const winners = data.winners;
+      tbody.innerHTML = winners.map(w =>
+        `<tr>
+          <td>${w.idx}</td>
+          <td>${w.en}</td>
+          <td>${w.mm}</td>
+          <td>${w.prize}</td>
+        </tr>`
+      ).join('');
+      
+      // Add a small indicator of the current mode
+      const modeIndicator = data.mode === 'real' ? '🔴 Live' : '🎭 Demo';
+      const existingIndicator = document.querySelector('.mode-indicator');
+      if (existingIndicator) {
+        existingIndicator.remove();
+      }
+      
+      const indicator = document.createElement('div');
+      indicator.className = 'mode-indicator';
+      indicator.style.cssText = 'position: absolute; top: 5px; right: 5px; font-size: 10px; color: #666; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px;';
+      indicator.textContent = modeIndicator;
+      document.querySelector('.winner-board').style.position = 'relative';
+      document.querySelector('.winner-board').appendChild(indicator);
+      
+      return;
+    }
+  } catch (error) {
+    console.log('Backend not available, using fallback demo data');
+  }
+  
+  // Fallback to original demo data if backend is not available
   const winners = getDailyWinners(10);
   tbody.innerHTML = winners.map(w =>
     `<tr>
@@ -374,9 +524,12 @@ function getDailyWinnersBySeed(seed, count = 10) {
   }));
 }
 
-function renderWinnerBoardHistory(dateStr) {
+async function renderWinnerBoardHistory(dateStr) {
   const tbody = document.getElementById("winnerBoardBody");
   if (!tbody) return;
+  
+  // For historical dates, always use the deterministic demo data
+  // This ensures consistency when users browse different dates
   const seed = getSeedFromDateString(dateStr);
   const winners = getDailyWinnersBySeed(seed, 10);
   tbody.innerHTML = winners.map(w =>
@@ -387,6 +540,12 @@ function renderWinnerBoardHistory(dateStr) {
       <td>${w.prize}</td>
     </tr>`
   ).join('');
+  
+  // Update mode indicator for historical view
+  const existingIndicator = document.querySelector('.mode-indicator');
+  if (existingIndicator) {
+    existingIndicator.textContent = '📅 History';
+  }
 }
 
 function renderWinnerDaySelect() {
@@ -401,7 +560,16 @@ function renderWinnerDaySelect() {
     select.appendChild(option);
   }
   select.onchange = function () {
-    renderWinnerBoardHistory(this.value);
+    const selectedDate = this.value;
+    const today = getDateString(0);
+    
+    if (selectedDate === today) {
+      // Show current day with backend data
+      renderWinnerBoard();
+    } else {
+      // Show historical data
+      renderWinnerBoardHistory(selectedDate);
+    }
   };
 }
 
@@ -410,272 +578,9 @@ document.addEventListener("DOMContentLoaded", () => {
   renderWinnerBoardHistory(getDateString(0));
 });
 
-// --- Real Users Modal Logic ---
-const REAL_USERS_KEY = "shwe123123@"; // Change this to your secret key
 
-document.getElementById("viewRealUsersBtn").onclick = function () {
-  document.getElementById("realUsersModal").style.display = "flex";
-  document.getElementById("realUsersAuth").style.display = "block";
-  document.getElementById("realUsersList").style.display = "none";
-  document.getElementById("realUsersKeyInput").value = "";
-  document.getElementById("realUsersKeyError").innerText = "";
-  // Make the modal box larger
-  const modalBox = document.querySelector('#realUsersModal > div');
-  if (modalBox) {
-    modalBox.style.maxWidth = '700px';
-    modalBox.style.width = '90vw';
-    modalBox.style.minWidth = '400px';
-    modalBox.style.padding = '40px 30px';
-    // Adjust close button to be plain '×' with no background
-    const closeBtn = document.getElementById('closeRealUsersModal');
-    if (closeBtn) {
-      closeBtn.style.background = 'none';
-      closeBtn.style.border = 'none';
-      closeBtn.style.borderRadius = '0';
-      closeBtn.style.width = '44px';
-      closeBtn.style.height = '44px';
-      closeBtn.style.fontSize = '28px';
-      closeBtn.style.lineHeight = '44px';
-      closeBtn.style.textAlign = 'center';
-      closeBtn.style.cursor = 'pointer';
-      closeBtn.style.position = 'absolute';
-      closeBtn.style.left = '50%';
-      closeBtn.style.top = '-22px';
-      closeBtn.style.transform = 'translateX(-50%)';
-      closeBtn.style.zIndex = '10';
-    }
-  }
-};
 
-document.getElementById("closeRealUsersModal").onclick = function () {
-  document.getElementById("realUsersModal").style.display = "none";
-};
 
-document.getElementById("realUsersKeyBtn").onclick = function () {
-  const inputKey = document.getElementById("realUsersKeyInput").value;
-  if (inputKey === REAL_USERS_KEY) {
-    // Show real users
-    document.getElementById("realUsersAuth").style.display = "none";
-    document.getElementById("realUsersList").style.display = "block";
-    showRealUsers();
-  } else {
-    document.getElementById("realUsersKeyError").innerText = "Wrong key!";
-  }
-};
-
-// --- Fetch and render real user spins from MongoDB ---
-function showRealUsers(dateFilter = null) {
-  const ul = document.getElementById("realUsersUl");
-  ul.innerHTML = "";
-
-  // Fetch from backend
-  fetch(`${BACKEND_URL}/api/spins`)
-    .then(res => res.json())
-    .then(records => {
-      if (!records.length) {
-        ul.innerHTML = "<li style='color:#fff;'>No user has spun yet.</li>";
-        return;
-      }
-      // Filter by date if needed
-      let filtered = records;
-      if (dateFilter) {
-        filtered = records.filter(r => {
-          const d = new Date(r.date);
-          const y = d.getFullYear();
-          const m = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          const dateStr = `${y}-${m}-${day}`;
-          return dateStr === dateFilter;
-        });
-      }
-      // Sort by date descending
-      filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
-      // Calculate totals
-      const uniqueUsers = new Set(filtered.map(r => (r.username || '').toLowerCase()));
-      let totalPrize = 0;
-      function myanmarToEnglish(str) {
-        const myanmarDigits = '၀၁၂၃၄၅၆၇၈၉';
-        return str.replace(/[၀-၉]/g, d => myanmarDigits.indexOf(d));
-      }
-      filtered.forEach(r => {
-        let prizeStr = (r.prize || '').replace(/,/g, '');
-        prizeStr = myanmarToEnglish(prizeStr);
-        if (/\d+/.test(prizeStr) && (prizeStr.includes('MMK') || prizeStr.includes('ကျပ်'))) {
-          let match = prizeStr.match(/(\d+)/);
-          if (match) totalPrize += parseInt(match[1], 10);
-        }
-      });
-      // Create a table for better formatting
-      let html = `<div style='text-align:center;margin-bottom:12px;'><span style='font-size:22px;font-weight:bold;color:#fff;'>🎯 Spin Records</span></div>`;
-      html += `<div style='color:#FFD700;font-size:17px;margin-bottom:10px;'>Total Users: <b>${uniqueUsers.size}</b> &nbsp; | &nbsp; Total Prize: <b>${totalPrize.toLocaleString()} MMK</b></div>`;
-      // The date search box is added by addDateSearchToModal(), so do not add it here
-      html += `<div style="max-height:52vh;min-height:180px;overflow-y:auto;margin:0 auto;width:100%;background:#181818;border-radius:12px;box-shadow:0 2px 12px #0002;">
-        <table style="width:100%;color:#fff;font-size:15px;border-collapse:separate;border-spacing:0 6px;table-layout:fixed;">
-          <thead>
-            <tr style='border-bottom:2px solid #FFD700;'>
-              <th style='padding:8px 4px;width:32%;text-align:left;'>Date</th>
-              <th style='padding:8px 4px;width:34%;text-align:left;'>Username</th>
-              <th style='padding:8px 4px;width:34%;text-align:left;'>Prize</th>
-            </tr>
-          </thead>
-          <tbody>`;
-      filtered.forEach(r => {
-        const dateObj = new Date(r.date);
-        const date = dateObj.getFullYear() + '-' + String(dateObj.getMonth() + 1).padStart(2, '0') + '-' + String(dateObj.getDate()).padStart(2, '0');
-        html += `<tr style='background:#222;border-radius:8px;'>
-          <td style='padding:7px 4px;border-radius:8px 0 0 8px;word-break:break-all;'>${date}</td>
-          <td style='padding:7px 4px;word-break:break-all;'>${r.username}</td>
-          <td style='padding:7px 4px;border-radius:0 8px 8px 0;color:#FFD700;font-weight:bold;'>${r.prize}</td>
-        </tr>`;
-      });
-      html += '</tbody></table></div>';
-      ul.innerHTML = html;
-    })
-    .catch(() => {
-      ul.innerHTML = "<li style='color:#fff;'>Could not load real user data.</li>";
-    });
-}
-
-// Add date search input to modal
-function addDateSearchToModal() {
-  const modalBox = document.querySelector('#realUsersModal > div');
-  if (!modalBox) return;
-  if (document.getElementById('realUsersDateSearch')) return;
-  const searchDiv = document.createElement('div');
-  searchDiv.style = 'text-align:center;margin-bottom:16px;';
-  searchDiv.innerHTML = `
-    <input id="realUsersDateSearch" type="date" style="padding:6px 10px;border-radius:5px;font-size:16px;max-width:180px;">
-    <button id="realUsersDateBtn" style="margin-left:8px;background:#FFD700;color:#111;font-weight:bold;padding:6px 16px;border-radius:6px;">Search</button>
-    <button id="realUsersDateClear" style="margin-left:8px;background:#444;color:#fff;font-weight:bold;padding:6px 16px;border-radius:6px;">All</button>
-  `;
-  modalBox.insertBefore(searchDiv, modalBox.children[1]);
-  document.getElementById('realUsersDateBtn').onclick = function () {
-    const val = document.getElementById('realUsersDateSearch').value;
-    if (val) showRealUsers(val);
-  };
-  document.getElementById('realUsersDateClear').onclick = function () {
-    document.getElementById('realUsersDateSearch').value = '';
-    showRealUsers();
-  };
-}
-
-// Update modal open handler to add date search
-const origViewRealUsersBtn = document.getElementById("viewRealUsersBtn").onclick;
-document.getElementById("viewRealUsersBtn").onclick = function () {
-  if (origViewRealUsersBtn) origViewRealUsersBtn();
-  addDateSearchToModal();
-  showRealUsers();
-};
-
-// --- Reset Database Modal Logic ---
-function createResetModal() {
-  if (document.getElementById('resetDbModal')) return;
-  const modal = document.createElement('div');
-  modal.id = 'resetDbModal';
-  modal.style = 'display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:10000;align-items:center;justify-content:center;';
-  modal.innerHTML = `
-    <div style="background:#222;padding:30px 20px 20px 20px;border-radius:12px;max-width:350px;margin:auto;position:relative;min-width:280px;">
-      <button id="closeResetDbModal" style="position:absolute;left:50%;top:-22px;transform:translateX(-50%);background:none;border:none;border-radius:0;width:44px;height:44px;font-size:28px;line-height:44px;text-align:center;cursor:pointer;z-index:10;">×</button>
-      <div id="resetDbAuth">
-        <h3 style="color:#FFD700;text-align:center;">Admin Login</h3>
-        <input type="text" id="resetDbUsername" placeholder="Username" style="padding:6px 10px;border-radius:5px;width:90%;margin-bottom:8px;">
-        <input type="password" id="resetDbPassword" placeholder="Password" style="padding:6px 10px;border-radius:5px;width:90%;margin-bottom:8px;">
-        <button id="resetDbAuthBtn" style="margin-top:10px;background:#FFD700;color:#111;font-weight:bold;padding:6px 16px;border-radius:6px;width:90%;">Login</button>
-        <div id="resetDbAuthError" style="color:#FF4444;margin-top:8px;text-align:center;"></div>
-      </div>
-      <div id="resetDbConfirm" style="display:none;text-align:center;">
-        <h3 style="color:#FFD700;">Are you sure?</h3>
-        <p style="color:#fff;">This will <b>delete all spin records</b> from the database. This action cannot be undone.</p>
-        <button id="resetDbConfirmBtn" style="background:#FF4444;color:#fff;font-weight:bold;padding:6px 16px;border-radius:6px;margin-right:10px;">Yes, Delete All</button>
-        <button id="resetDbCancelBtn" style="background:#FFD700;color:#111;font-weight:bold;padding:6px 16px;border-radius:6px;">Cancel</button>
-      </div>
-      <div id="resetDbSuccess" style="display:none;text-align:center;color:#00FF66;font-weight:bold;margin-top:12px;">All records deleted successfully!</div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-
-  document.getElementById('closeResetDbModal').onclick = function () {
-    modal.style.display = 'none';
-    document.getElementById('resetDbAuth').style.display = '';
-    document.getElementById('resetDbConfirm').style.display = 'none';
-    document.getElementById('resetDbSuccess').style.display = 'none';
-    document.getElementById('resetDbUsername').value = '';
-    document.getElementById('resetDbPassword').value = '';
-    document.getElementById('resetDbAuthError').innerText = '';
-  };
-
-  document.getElementById('resetDbAuthBtn').onclick = function () {
-    const username = document.getElementById('resetDbUsername').value;
-    const password = document.getElementById('resetDbPassword').value;
-    // Change these credentials as needed
-    if (username === 'admin' && password === 'shwe123123@') {
-      document.getElementById('resetDbAuth').style.display = 'none';
-      // Show user delete form
-      document.getElementById('resetDbConfirm').innerHTML = `
-        <h3 style="color:#FFD700;">Delete User Records</h3>
-        <input type="text" id="deleteUserInput" placeholder="Enter username to delete" style="padding:6px 10px;border-radius:5px;width:90%;margin-bottom:8px;">
-        <button id="deleteUserBtn" style="background:#FF4444;color:#fff;font-weight:bold;padding:6px 16px;border-radius:6px;margin-right:10px;">Delete User</button>
-        <button id="resetDbCancelBtn" style="background:#FFD700;color:#111;font-weight:bold;padding:6px 16px;border-radius:6px;">Cancel</button>
-        <div id="deleteUserResult" style="margin-top:10px;"></div>
-      `;
-      document.getElementById('resetDbConfirm').style.display = '';
-      document.getElementById('resetDbCancelBtn').onclick = function () {
-        modal.style.display = 'none';
-        document.getElementById('resetDbAuth').style.display = '';
-        document.getElementById('resetDbConfirm').style.display = 'none';
-        document.getElementById('resetDbSuccess').style.display = 'none';
-        document.getElementById('resetDbUsername').value = '';
-        document.getElementById('resetDbPassword').value = '';
-        document.getElementById('resetDbAuthError').innerText = '';
-      };
-      document.getElementById('deleteUserBtn').onclick = function () {
-        const userToDelete = document.getElementById('deleteUserInput').value.trim();
-        if (!userToDelete) {
-          document.getElementById('deleteUserResult').innerHTML = '<span style="color:#FF4444;">Please enter a username.</span>';
-          return;
-        }
-        fetch(`${BACKEND_URL}/api/spins/user/` + encodeURIComponent(userToDelete), { method: 'DELETE' })
-          .then(res => {
-            if (!res.ok) {
-              return res.json().then(data => { throw new Error(data.error || 'Server error'); });
-            }
-            return res.json();
-          })
-          .then(data => {
-            if (data.success) {
-              document.getElementById('deleteUserResult').innerHTML = '<span style="color:#00FF66;">User records deleted successfully!</span>';
-            } else {
-              document.getElementById('deleteUserResult').innerHTML = '<span style="color:#FF4444;">Failed to delete user records.</span>';
-            }
-          })
-          .catch((err) => {
-            document.getElementById('deleteUserResult').innerHTML = '<span style="color:#FF4444;">' + (err.message || 'Failed to delete user records.') + '</span>';
-            console.error('Delete user error:', err);
-          });
-      };
-    } else {
-      document.getElementById('resetDbAuthError').innerText = 'Invalid username or password!';
-    }
-  };
-
-  // Optional: Close modal when clicking outside the popup
-  modal.addEventListener('click', function (e) {
-    if (e.target === this) this.style.display = 'none';
-  });
-}
-
-// Add Reset button to the page (e.g., below winner board)
-document.addEventListener('DOMContentLoaded', () => {
-  createResetModal();
-  const resetBtn = document.createElement('button');
-  resetBtn.id = 'resetDbBtn';
-  resetBtn.innerText = 'Reset Database';
-  resetBtn.style = 'background:#FF4444;color:#fff;font-weight:bold;margin:18px auto 0 auto;display:block;max-width:220px;';
-  document.querySelector('.winner-board').appendChild(resetBtn);
-  resetBtn.onclick = function () {
-    document.getElementById('resetDbModal').style.display = 'flex';
-  };
-});
 
 // --- Confetti animation helper ---
 function launchConfetti(styleIdx = 0) {
@@ -883,4 +788,6 @@ function testDatabaseConnection() {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('🔍 Running database connection test...');
   testDatabaseConnection();
+
+
 });
